@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "4000:4000"
+    volumes:
+      - ../../data:/app/data
+      - ../../apps:/app/apps
+      - ../../packages:/app/packages
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "5050:5050"
+    depends_on:
+      - api

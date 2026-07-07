@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-ts
+.git
+.DS_Store
+coverage
+*.tsbuildinfo
