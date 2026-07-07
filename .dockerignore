@@ -1,7 +1,15 @@
 node_modules
+**/node_modules
 dist
+**/dist
 dist-ts
+**/dist-ts
 .git
 .DS_Store
 coverage
+**/coverage
 *.tsbuildinfo
+**/*.tsbuildinfo
+.venv*
+**/__pycache__
+**/.pytest_cache

@@ -5,3 +5,6 @@ dist-ts
 .DS_Store
 .env
 coverage
+.venv*
+__pycache__
+.pytest_cache

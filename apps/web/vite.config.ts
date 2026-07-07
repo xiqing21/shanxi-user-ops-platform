@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5050,
     proxy: {
       "/api": {
-        target: "http://localhost:4000",
+        target: process.env.VITE_API_TARGET ?? "http://localhost:4000",
         rewrite: (path) => path.replace(/^\/api/, "")
       }
     }

@@ -12,9 +12,11 @@ interface Plan {
   clarifyingQuestion: string;
   candidateAssets: string[];
   generatedSql: string;
-  provider?: "deepseek" | "heuristic";
+  provider?: "python-ai" | "deepseek" | "heuristic" | string;
   model?: string;
   fallbackReason?: string;
+  vectorBackend?: string;
+  retrievalMode?: string;
   steps: Array<{ kind: string; title: string; detail: string }>;
 }
 
@@ -39,9 +41,10 @@ export function AgentTaskPage() {
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{plan.intent}</Badge>
-                <Badge variant={plan.provider === "deepseek" ? "default" : "secondary"}>
-                  {plan.provider === "deepseek" ? `DeepSeek${plan.model ? ` · ${plan.model}` : ""}` : "本地兜底"}
+                <Badge variant={plan.provider === "python-ai" ? "default" : "secondary"}>
+                  {plan.provider === "python-ai" ? `Python AI${plan.model ? ` · ${plan.model}` : ""}` : "本地兜底"}
                 </Badge>
+                {plan.vectorBackend && <Badge variant="secondary">向量: {plan.vectorBackend}</Badge>}
                 <Badge variant={plan.needsNewWideTable ? "destructive" : "secondary"}>
                   {plan.needsNewWideTable ? "需要新建宽表" : "可直接查询"}
                 </Badge>

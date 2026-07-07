@@ -5,6 +5,10 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @shanxi/api --filter @shanxi/web dev",
     "start:local": "scripts/start-local.sh",
+    "stack:up": "scripts/start-docker-stack.sh",
+    "stack:down": "docker compose -f deploy/compose/docker-compose.yml down",
+    "test:ai": "scripts/test-ai.sh",
+    "test:all": "pnpm test && pnpm typecheck && pnpm test:ai",
     "build": "pnpm -r build",
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck",

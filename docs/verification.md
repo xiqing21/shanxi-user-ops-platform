@@ -7,6 +7,7 @@ Use pnpm for all Node commands.
 ```bash
 pnpm test
 pnpm typecheck
+pnpm test:ai
 pnpm --filter @shanxi/web build
 docker compose -f deploy/compose/docker-compose.yml config
 ```
@@ -23,12 +24,15 @@ Do not use Playwright. Open local Chrome and check:
 
 ## AI Integration
 
+- Python AI is the primary Text-to-SQL and task-planning service. Node keeps the stable frontend-facing `/agent/plan` route and proxies the request to `AI_SERVICE_URL`.
 - DeepSeek is configured through server-side environment variables only: `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, and `DEEPSEEK_MODEL`.
 - The committed `.env.example` documents the variables. The real `.env` file is ignored by Git.
-- `/agent/plan` uses DeepSeek JSON output when configured and falls back to the local planner when the key is missing or the provider is unavailable.
+- `/agent/plan` uses Python AI + DeepSeek JSON output when configured and falls back to the local planner when the provider is unavailable.
+- The Docker stack starts Milvus Standalone with etcd and MinIO, then the Python AI service creates and searches the `shanxi_metadata_assets` collection.
 
 ## Current Boundaries
 
-- Python batch/vector tooling is not implemented yet.
-- Milvus/LanceDB vector retrieval is a stage-two target, not part of the current runnable MVP.
-- Text-to-SQL is currently a DeepSeek-backed task-plan and SQL-draft workflow with local fallback, not a full metadata-vector-retrieval execution chain.
+- Python batch/vector tooling now exists for metadata retrieval and task-plan generation.
+- The current embedding model is deterministic hash embedding so tests and demos run without downloading a large model. Production should replace it with BGE-M3 or another enterprise embedding model.
+- Milvus is available in Docker Compose. If Milvus is not reachable in local development, the Python service falls back to an in-memory vector index.
+- Text-to-SQL is still a task-plan and SQL-draft workflow. It does not yet execute SQL against StarRocks/Flink SQL Gateway.
