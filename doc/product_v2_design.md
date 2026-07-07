@@ -594,3 +594,10 @@ K8s 映射：
 9. 增加 Flink batch 离线校准。
 10. 第二阶段补充 `deploy/k8s` 与 kind/Docker Desktop K8s 演示。
 
+---
+
+## 16. Implementation Plan
+
+The approved implementation plan is saved at:
+
+`docs/superpowers/plans/2026-07-07-shanxi-user-ops-platform.md`

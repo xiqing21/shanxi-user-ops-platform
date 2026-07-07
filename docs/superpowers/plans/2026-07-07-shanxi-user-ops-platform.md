@@ -6,7 +6,7 @@
 
 **Architecture:** Use a pnpm monorepo with a React/Vite frontend, Fastify API, shared domain package, simulator package, and agent package. The first implementation uses deterministic mock data and file-backed fixtures so the product can run immediately, then adds Docker Compose and K8s-ready manifests around the same service boundaries.
 
-**Tech Stack:** pnpm, TypeScript, React, Vite, Tailwind CSS, shadcn-compatible component primitives, Fastify, Vitest, Zod, ECharts, Docker Compose, Docker Desktop Kubernetes/kind manifests.
+**Tech Stack:** pnpm, TypeScript, React, Vite, Tailwind CSS, shadcn/ui-style local components, Radix Slot, class-variance-authority, tailwind-merge, Recharts, Fastify, Vitest, Zod, Docker Compose, Docker Desktop Kubernetes/kind manifests.
 
 ## Global Constraints
 
@@ -45,6 +45,9 @@ apps/
   web/
     package.json
     index.html
+    components.json
+    postcss.config.js
+    tailwind.config.ts
     src/
       App.tsx
       main.tsx
@@ -53,6 +56,17 @@ apps/
         MetricCard.tsx
         RiskQueue.tsx
         Shell.tsx
+        charts/
+          LoadTrendChart.tsx
+        ui/
+          badge.tsx
+          button.tsx
+          card.tsx
+          input.tsx
+          scroll-area.tsx
+          table.tsx
+          tabs.tsx
+          textarea.tsx
       pages/
         AgentTaskPage.tsx
         DashboardPage.tsx
@@ -61,6 +75,7 @@ apps/
         TextToSqlPage.tsx
       lib/
         api.ts
+        cn.ts
         format.ts
     vite.config.ts
 packages/
@@ -118,7 +133,7 @@ Responsibilities:
 - `packages/simulator`: deterministic Shanxi user/load/anomaly fixture generation.
 - `packages/agent`: ReAct/Plan-style task planning and retrieval scoring prototype.
 - `apps/api`: REST API over fixtures, SQL safety guard, agent endpoints.
-- `apps/web`: shadcn-style product UI for dashboard, big industry analysis, Text-to-SQL, AI task creation, and simulation.
+- `apps/web`: shadcn/ui-style product UI for dashboard, big industry analysis, Text-to-SQL, AI task creation, simulation, and Recharts-based operational charts.
 - `deploy/compose`: first-stage local runtime.
 - `deploy/k8s`: second-stage Docker Desktop Kubernetes/kind skeleton.
 
@@ -333,15 +348,23 @@ Create `apps/web/package.json`:
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "echarts": "^5.5.1",
+    "@radix-ui/react-slot": "^1.1.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "recharts": "^2.15.0",
+    "tailwind-merge": "^2.5.5",
+    "tailwindcss-animate": "^1.0.7",
     "vite": "^6.0.3"
   },
   "devDependencies": {
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2"
   }
 }
@@ -1251,21 +1274,35 @@ git commit -m "feat: add AI analysis task planner"
 **Files:**
 - Create: `apps/web/tsconfig.json`
 - Create: `apps/web/vite.config.ts`
+- Create: `apps/web/components.json`
 - Create: `apps/web/index.html`
+- Create: `apps/web/postcss.config.js`
+- Create: `apps/web/tailwind.config.ts`
 - Create: `apps/web/src/main.tsx`
 - Create: `apps/web/src/App.tsx`
 - Create: `apps/web/src/styles.css`
 - Create: `apps/web/src/lib/api.ts`
+- Create: `apps/web/src/lib/cn.ts`
 - Create: `apps/web/src/lib/format.ts`
+- Create: `apps/web/src/components/charts/LoadTrendChart.tsx`
 - Create: `apps/web/src/components/Shell.tsx`
 - Create: `apps/web/src/components/MetricCard.tsx`
 - Create: `apps/web/src/components/RiskQueue.tsx`
+- Create: `apps/web/src/components/ui/badge.tsx`
+- Create: `apps/web/src/components/ui/button.tsx`
+- Create: `apps/web/src/components/ui/card.tsx`
+- Create: `apps/web/src/components/ui/input.tsx`
+- Create: `apps/web/src/components/ui/scroll-area.tsx`
+- Create: `apps/web/src/components/ui/table.tsx`
+- Create: `apps/web/src/components/ui/tabs.tsx`
+- Create: `apps/web/src/components/ui/textarea.tsx`
 - Create: `apps/web/src/pages/DashboardPage.tsx`
 
 **Interfaces:**
 - Consumes: `GET /operations/summary`, `GET /operations/risks`
 - Produces: browser route tabs in `App.tsx`
 - Produces: dashboard-first UI with no marketing landing page
+- Produces: local shadcn/ui-style primitives and Recharts operational chart components
 
 - [ ] **Step 1: Create Vite app files**
 
