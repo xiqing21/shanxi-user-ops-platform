@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shanxi/domain": ["packages/domain/src/index.ts"],
+      "@shanxi/simulator": ["packages/simulator/src/index.ts"],
+      "@shanxi/agent": ["packages/agent/src/index.ts"]
+    }
+  }
+}
