@@ -12,6 +12,9 @@ interface Plan {
   clarifyingQuestion: string;
   candidateAssets: string[];
   generatedSql: string;
+  provider?: "deepseek" | "heuristic";
+  model?: string;
+  fallbackReason?: string;
   steps: Array<{ kind: string; title: string; detail: string }>;
 }
 
@@ -36,10 +39,14 @@ export function AgentTaskPage() {
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{plan.intent}</Badge>
+                <Badge variant={plan.provider === "deepseek" ? "default" : "secondary"}>
+                  {plan.provider === "deepseek" ? `DeepSeek${plan.model ? ` · ${plan.model}` : ""}` : "本地兜底"}
+                </Badge>
                 <Badge variant={plan.needsNewWideTable ? "destructive" : "secondary"}>
                   {plan.needsNewWideTable ? "需要新建宽表" : "可直接查询"}
                 </Badge>
               </div>
+              {plan.fallbackReason && <p className="mt-2 text-xs text-amber-700">{plan.fallbackReason}</p>}
               <p className="mt-3 text-sm text-blue-950">{plan.clarifyingQuestion}</p>
             </div>
             <div className="grid gap-3 md:grid-cols-4">

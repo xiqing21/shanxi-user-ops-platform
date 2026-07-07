@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --parallel --filter @shanxi/api --filter @shanxi/web dev",
+    "start:local": "scripts/start-local.sh",
     "build": "pnpm -r build",
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck",

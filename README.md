@@ -5,15 +5,23 @@ This repository contains the MVP for a Shanxi province full-user electricity ope
 ## Run Locally
 
 ```bash
-pnpm install
-pnpm --filter @shanxi/simulator generate
-pnpm dev
+pnpm start:local
 ```
 
 Open:
 
 - Frontend: http://localhost:5050
 - API health: http://localhost:4000/health
+
+Optional DeepSeek integration:
+
+```bash
+cp .env.example .env
+# fill DEEPSEEK_API_KEY in .env
+pnpm start:local
+```
+
+When `DEEPSEEK_API_KEY` is configured, `/agent/plan` calls DeepSeek from the API server. If DeepSeek is not configured or temporarily unavailable, the API falls back to the local rule planner so the demo remains usable.
 
 ## Docker Compose
 
