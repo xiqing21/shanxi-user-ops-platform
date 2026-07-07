@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: shanxi-simulator
+spec:
+  schedule: "*/15 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: simulator
+              image: shanxi-api:local
+              imagePullPolicy: IfNotPresent
+              command: ["pnpm", "--filter", "@shanxi/simulator", "generate"]
