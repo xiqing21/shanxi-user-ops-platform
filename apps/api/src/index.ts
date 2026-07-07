@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import { agentRoutes } from "./routes/agent";
 import { healthRoutes } from "./routes/health";
 import { operationsRoutes } from "./routes/operations";
 import { simulatorRoutes } from "./routes/simulator";
@@ -10,6 +11,7 @@ export async function buildApp() {
   await app.register(healthRoutes);
   await app.register(operationsRoutes);
   await app.register(simulatorRoutes);
+  await app.register(agentRoutes);
   return app;
 }
 
