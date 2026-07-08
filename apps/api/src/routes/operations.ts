@@ -51,4 +51,17 @@ export async function operationsRoutes(app: FastifyInstance) {
       .sort((a, b) => b.activePowerKw - a.activePowerKw)
       .slice(0, 30);
   });
+
+  app.get("/operations/runtime-status", async () => ({
+    flink: {
+      connected: false,
+      submittedJobs: 0,
+      message: "当前 Docker 栈还没有接入真实 Flink 集群，页面展示的是模拟实时/离线效果。"
+    },
+    milvus: {
+      connected: true,
+      collections: ["guowang_metadata", "guowang_table_docs"],
+      message: "Python AI 服务在 Docker 栈中可使用 Milvus；本接口只反映产品侧状态。"
+    }
+  }));
 }

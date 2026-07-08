@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
-    "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "^4.3.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -20,7 +19,6 @@
     "recharts": "^2.15.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
-    "three": "^0.185.1",
     "vite": "^6.0.3"
   },
   "devDependencies": {

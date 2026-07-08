@@ -18,6 +18,8 @@ export interface RoleView {
   operatingHint: string;
 }
 
+const shanxiCities = ["太原", "大同", "阳泉", "长治", "晋城", "朔州", "晋中", "运城", "忻州", "临汾", "吕梁"];
+
 export const roles: RoleView[] = [
   {
     id: "province_dispatch",
@@ -27,7 +29,7 @@ export const roles: RoleView[] = [
     scopeLabel: "山西省全量用户",
     defaultTab: "全省态势",
     visibleTabs: ["全省态势", "大工业分析", "AI 问数", "AI 建任务", "多Agent编排", "模拟压测"],
-    cities: ["太原", "大同", "长治", "运城", "临汾", "吕梁", "晋中", "忻州"],
+    cities: shanxiCities,
     riskFilter: "all",
     defaultTextToSqlQuery: "统计山西省近7天各地市实时风险数量、严重风险数量和大工业用户占比",
     defaultAgentQuery: "统计山西省近7天大工业用户晚高峰负荷突增Top10，并说明是否需要新建宽表",
@@ -55,7 +57,7 @@ export const roles: RoleView[] = [
     scopeLabel: "大工业与高耗能用户",
     defaultTab: "大工业分析",
     visibleTabs: ["大工业分析", "全省态势", "AI 问数", "AI 建任务", "多Agent编排"],
-    cities: ["太原", "大同", "长治", "运城", "临汾", "吕梁", "晋中", "忻州"],
+    cities: shanxiCities,
     riskFilter: "industrial",
     defaultTextToSqlQuery: "查询近30天山西大工业和高耗能用户晚高峰负荷突增Top20，按行业排名",
     defaultAgentQuery: "分析近30天山西大工业用户晚高峰负荷突增，并按行业和地市排名",
@@ -69,7 +71,7 @@ export const roles: RoleView[] = [
     scopeLabel: "AI / 数据链路运维",
     defaultTab: "AI 建任务",
     visibleTabs: ["AI 建任务", "多Agent编排", "AI 问数", "模拟压测", "全省态势"],
-    cities: ["太原", "大同", "长治", "运城"],
+    cities: shanxiCities,
     riskFilter: "ai",
     defaultTextToSqlQuery: "统计近1小时 Text2SQL 查询耗时、失败率、命中向量表数量和回退次数",
     defaultAgentQuery: "检查 Python AI、DeepSeek、Milvus、实时宽表和离线校验链路是否健康，并生成排障步骤",

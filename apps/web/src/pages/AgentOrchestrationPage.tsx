@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
   BrainCircuit,
@@ -16,6 +16,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { ScrollArea } from "../components/ui/scroll-area";
+import { getJson } from "../lib/api";
 import type { RoleView } from "../lib/roles";
 
 type AgentStatus = "running" | "ready" | "waiting" | "done";
@@ -28,6 +29,19 @@ interface AgentNode {
   status: AgentStatus;
   latencyMs: number;
   detail: string;
+}
+
+interface RuntimeStatus {
+  flink: {
+    connected: boolean;
+    submittedJobs: number;
+    message: string;
+  };
+  milvus: {
+    connected: boolean;
+    collections: string[];
+    message: string;
+  };
 }
 
 const baseAgents: AgentNode[] = [
@@ -99,11 +113,16 @@ const eventTemplates = [
 export function AgentOrchestrationPage({ role }: { role: RoleView }) {
   const [runId, setRunId] = useState(1);
   const [selectedAgent, setSelectedAgent] = useState(baseAgents[0]);
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
   const agents = useMemo(() => {
     if (role.id !== "ai_ops") return baseAgents.filter((agent) => agent.id !== "sql_guard" || role.id !== "city_operator");
     return baseAgents;
   }, [role.id]);
   const completion = Math.round((agents.filter((agent) => agent.status === "done").length / agents.length) * 100);
+
+  useEffect(() => {
+    void getJson<RuntimeStatus>("/operations/runtime-status").then(setRuntimeStatus);
+  }, []);
 
   return (
     <div className="grid gap-5">
@@ -131,10 +150,25 @@ export function AgentOrchestrationPage({ role }: { role: RoleView }) {
 
       <section className="grid gap-3 md:grid-cols-4">
         <Kpi title="完成度" value={`${completion}%`} hint="编排节点进度" />
-        <Kpi title="工具调用" value="18" hint="Milvus / DeepSeek / Flink" />
+        <Kpi title="Flink提交" value={String(runtimeStatus?.flink.submittedJobs ?? 0)} hint={runtimeStatus?.flink.connected ? "真实集群已连接" : "当前未接入真实集群"} />
         <Kpi title="待人工确认" value="3" hint="高风险告警和 SQL 任务" />
         <Kpi title="预计节省" value="42min" hint="相对人工检索和排障" />
       </section>
+
+      {runtimeStatus && (
+        <Card className="border-amber-200 bg-amber-50 shadow-sm">
+          <CardContent className="grid gap-2 p-4 text-sm text-amber-900 md:grid-cols-[1fr_1fr]">
+            <div>
+              <b>真实 Flink 提交状态：{runtimeStatus.flink.connected ? "已连接" : "未接入"}</b>
+              <p className="mt-1 leading-6">{runtimeStatus.flink.message}</p>
+            </div>
+            <div>
+              <b>Milvus / 向量检索状态：{runtimeStatus.milvus.connected ? "已配置" : "未配置"}</b>
+              <p className="mt-1 leading-6">{runtimeStatus.milvus.message}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <section className="grid gap-5 xl:grid-cols-[1.35fr_.75fr]">
         <Card className="border-slate-200/80 bg-white/90 shadow-sm">

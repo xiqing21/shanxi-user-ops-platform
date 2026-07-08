@@ -4,7 +4,7 @@ import { AlertWorkbench } from "../components/AlertWorkbench";
 import { LoadTrendChart } from "../components/charts/LoadTrendChart";
 import { MetricCard } from "../components/MetricCard";
 import { RiskQueue } from "../components/RiskQueue";
-import { Shanxi3DMap } from "../components/Shanxi3DMap";
+import { ShanxiDrilldownMap } from "../components/ShanxiDrilldownMap";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { getJson } from "../lib/api";
@@ -84,7 +84,7 @@ export function DashboardPage({ role }: { role: RoleView }) {
             </CardContent>
           </Card>
 
-          <Shanxi3DMap role={role} risks={visibleRisks} selectedCity={selectedCity} onSelectCity={setSelectedCity} />
+          <ShanxiDrilldownMap role={role} risks={visibleRisks} selectedCity={selectedCity} onSelectCity={setSelectedCity} />
         </div>
 
         <RiskQueue risks={visibleRisks} title={`${role.shortName}告警队列`} />

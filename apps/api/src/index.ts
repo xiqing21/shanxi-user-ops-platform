@@ -4,6 +4,7 @@ import { agentRoutes } from "./routes/agent";
 import { healthRoutes } from "./routes/health";
 import { operationsRoutes } from "./routes/operations";
 import { simulatorRoutes } from "./routes/simulator";
+import { textToSqlRoutes } from "./routes/text-to-sql";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -12,6 +13,7 @@ export async function buildApp() {
   await app.register(operationsRoutes);
   await app.register(simulatorRoutes);
   await app.register(agentRoutes);
+  await app.register(textToSqlRoutes);
   return app;
 }
 
