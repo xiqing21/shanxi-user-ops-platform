@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { getJson } from "../lib/api";
 import { formatNumber } from "../lib/format";
+import type { RoleView } from "../lib/roles";
 
 interface IndustrialUser {
   userId: string;
@@ -16,7 +17,7 @@ interface IndustrialUser {
   loadRate: number;
 }
 
-export function IndustrialPage() {
+export function IndustrialPage({ role }: { role: RoleView }) {
   const [rows, setRows] = useState<IndustrialUser[]>([]);
   useEffect(() => void getJson<IndustrialUser[]>("/operations/industrial").then(setRows), []);
   return (
@@ -26,7 +27,10 @@ export function IndustrialPage() {
           <Factory className="h-4 w-4 text-blue-600" />
           大工业用户负荷分析
         </CardTitle>
-        <Badge variant="secondary">Top {rows.length}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{role.shortName}</Badge>
+          <Badge variant="secondary">Top {rows.length}</Badge>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>

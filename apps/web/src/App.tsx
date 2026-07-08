@@ -5,17 +5,25 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { IndustrialPage } from "./pages/IndustrialPage";
 import { SimulatorPage } from "./pages/SimulatorPage";
 import { TextToSqlPage } from "./pages/TextToSqlPage";
+import { defaultRole, type RoleView } from "./lib/roles";
 
 export function App() {
-  const [active, setActive] = useState("全省态势");
+  const [role, setRole] = useState<RoleView>(defaultRole);
+  const [active, setActive] = useState(defaultRole.defaultTab);
+
+  function changeRole(nextRole: RoleView) {
+    setRole(nextRole);
+    setActive(nextRole.defaultTab);
+  }
+
   const page = active === "大工业分析"
-    ? <IndustrialPage />
+    ? <IndustrialPage role={role} />
     : active === "AI 问数"
-      ? <TextToSqlPage />
+      ? <TextToSqlPage role={role} />
       : active === "AI 建任务"
-        ? <AgentTaskPage />
+        ? <AgentTaskPage role={role} />
         : active === "模拟压测"
           ? <SimulatorPage />
-          : <DashboardPage />;
-  return <Shell active={active} onTab={setActive}>{page}</Shell>;
+          : <DashboardPage role={role} />;
+  return <Shell active={active} role={role} onRole={changeRole} onTab={setActive}>{page}</Shell>;
 }

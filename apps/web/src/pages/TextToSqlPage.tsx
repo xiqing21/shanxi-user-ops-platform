@@ -3,14 +3,18 @@ import { ShieldCheck, Table2 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Textarea } from "../components/ui/textarea";
+import type { RoleView } from "../lib/roles";
 
-export function TextToSqlPage() {
-  const [query, setQuery] = useState("查询近7天太原大工业用户晚高峰负荷Top10，并按行业分组");
+export function TextToSqlPage({ role }: { role: RoleView }) {
+  const [query, setQuery] = useState(role.defaultTextToSqlQuery);
   const sql = "SELECT city, industry, user_id, MAX(active_power_kw) AS peak_kw\nFROM ads_realtime_user_load\nWHERE city = '太原'\nGROUP BY city, industry, user_id\nLIMIT 100;";
   return (
     <Card className="border-slate-200/80 bg-white/90 shadow-sm">
       <CardHeader>
-        <CardTitle>AI 问数 Text-to-SQL</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          AI 问数 Text-to-SQL
+          <Badge variant="outline">{role.shortName}</Badge>
+        </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <Textarea value={query} onChange={(event) => setQuery(event.target.value)} />

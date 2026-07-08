@@ -21,7 +21,18 @@ export async function operationsRoutes(app: FastifyInstance) {
 
   app.get("/operations/risks", async () => {
     const snapshot = await loadSnapshot();
-    return snapshot.risks.slice(0, 50);
+    const users = new Map(snapshot.users.map((user) => [user.userId, user]));
+    return snapshot.risks.slice(0, 50).map((risk) => {
+      const user = users.get(risk.userId);
+      return {
+        ...risk,
+        userName: user?.userName ?? risk.userId,
+        city: user?.city ?? "未知",
+        county: user?.county ?? "未知",
+        userType: user?.userType ?? "unknown",
+        industry: user?.industry ?? "未知"
+      };
+    });
   });
 
   app.get("/operations/industrial", async () => {

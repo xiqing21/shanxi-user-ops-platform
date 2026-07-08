@@ -5,6 +5,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Textarea } from "../components/ui/textarea";
+import type { RoleView } from "../lib/roles";
 
 interface Plan {
   intent: string;
@@ -20,22 +21,34 @@ interface Plan {
   steps: Array<{ kind: string; title: string; detail: string }>;
 }
 
-export function AgentTaskPage() {
-  const [query, setQuery] = useState("分析近30天山西大工业用户晚高峰负荷突增，并按行业和地市排名");
+export function AgentTaskPage({ role }: { role: RoleView }) {
+  const [query, setQuery] = useState(role.defaultAgentQuery);
   const [plan, setPlan] = useState<Plan | null>(null);
+
+  function applyRoleQuery() {
+    setQuery(role.defaultAgentQuery);
+    setPlan(null);
+  }
+
   return (
     <Card className="border-slate-200/80 bg-white/90 shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <DatabaseZap className="h-4 w-4 text-blue-600" />
           AI 建任务
+          <Badge variant="outline">{role.shortName}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <Textarea value={query} onChange={(event) => setQuery(event.target.value)} />
-        <Button className="w-fit" onClick={() => void postJson<Plan>("/agent/plan", { query }).then(setPlan)}>
-          生成任务计划
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button className="w-fit" onClick={() => void postJson<Plan>("/agent/plan", { query }).then(setPlan)}>
+            生成任务计划
+          </Button>
+          <Button className="w-fit" onClick={applyRoleQuery} variant="outline">
+            套用{role.shortName}问题
+          </Button>
+        </div>
         {plan && (
           <div className="grid gap-4">
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
