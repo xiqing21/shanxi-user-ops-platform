@@ -1,4 +1,4 @@
-import { Activity, Bot, ChevronDown, DatabaseZap, Factory, Gauge, RadioTower } from "lucide-react";
+import { Activity, Bot, ChevronDown, DatabaseZap, Factory, Gauge, GitBranch, RadioTower } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "../lib/cn";
 import { roles, type RoleView } from "../lib/roles";
@@ -8,6 +8,7 @@ const tabs = [
   { label: "大工业分析", icon: Factory },
   { label: "AI 问数", icon: Bot },
   { label: "AI 建任务", icon: DatabaseZap },
+  { label: "多Agent编排", icon: GitBranch },
   { label: "模拟压测", icon: Activity }
 ];
 

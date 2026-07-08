@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Factory, Users, Zap } from "lucide-react";
+import { AlertWorkbench } from "../components/AlertWorkbench";
 import { LoadTrendChart } from "../components/charts/LoadTrendChart";
 import { MetricCard } from "../components/MetricCard";
 import { RiskQueue } from "../components/RiskQueue";
+import { Shanxi3DMap } from "../components/Shanxi3DMap";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { getJson } from "../lib/api";
@@ -33,11 +35,16 @@ interface RiskItem {
 export function DashboardPage({ role }: { role: RoleView }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [risks, setRisks] = useState<RiskItem[]>([]);
+  const [selectedCity, setSelectedCity] = useState(role.cities[0] ?? "太原");
 
   useEffect(() => {
     void getJson<Summary>("/operations/summary").then(setSummary);
     void getJson<RiskItem[]>("/operations/risks").then(setRisks);
   }, []);
+
+  useEffect(() => {
+    setSelectedCity(role.cities[0] ?? "太原");
+  }, [role]);
 
   if (!summary) return <div className="rounded-lg border bg-white p-6 text-slate-500 shadow-sm">加载全省态势...</div>;
 
@@ -77,28 +84,13 @@ export function DashboardPage({ role }: { role: RoleView }) {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/80 bg-white/90 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>山西一张图风险热力</CardTitle>
-              <Badge variant="outline">{role.scopeLabel}</Badge>
-            </CardHeader>
-            <CardContent>
-              <div className="grid min-h-[280px] place-items-center rounded-lg border border-blue-100 bg-[radial-gradient(circle_at_30%_20%,#dbeafe,transparent_30%),linear-gradient(135deg,#f8fafc,#eff6ff)] p-6">
-                <div className="grid w-full max-w-3xl grid-cols-2 gap-3 text-sm font-medium text-blue-900 md:grid-cols-4">
-                  {role.cities.map((city, index) => (
-                    <div className="rounded-lg border border-white/80 bg-white/70 p-4 shadow-sm" key={city}>
-                      <div className="text-lg font-semibold">{city}</div>
-                      <div className="mt-2 text-xs text-slate-500">风险指数 {calculateCityRisk(city, visibleRisks, index)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <Shanxi3DMap role={role} risks={visibleRisks} selectedCity={selectedCity} onSelectCity={setSelectedCity} />
         </div>
 
         <RiskQueue risks={visibleRisks} title={`${role.shortName}告警队列`} />
       </section>
+
+      <AlertWorkbench risks={visibleRisks} selectedCity={selectedCity} />
     </div>
   );
 }
@@ -110,9 +102,4 @@ function filterRisksByRole(risks: RiskItem[], role: RoleView) {
   }
   if (role.riskFilter === "ai") return risks.filter((risk) => risk.level === "critical" || risk.riskType === "voltage_anomaly");
   return risks;
-}
-
-function calculateCityRisk(city: string, risks: RiskItem[], index: number) {
-  const cityRisks = risks.filter((risk) => risk.city === city);
-  return Math.min(96, 58 + cityRisks.length * 7 + index * 3);
 }

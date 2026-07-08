@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Shell } from "./components/Shell";
 import { AgentTaskPage } from "./pages/AgentTaskPage";
+import { AgentOrchestrationPage } from "./pages/AgentOrchestrationPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { IndustrialPage } from "./pages/IndustrialPage";
 import { SimulatorPage } from "./pages/SimulatorPage";
@@ -22,8 +23,10 @@ export function App() {
       ? <TextToSqlPage role={role} />
       : active === "AI 建任务"
         ? <AgentTaskPage role={role} />
-        : active === "模拟压测"
-          ? <SimulatorPage />
-          : <DashboardPage role={role} />;
+        : active === "多Agent编排"
+          ? <AgentOrchestrationPage role={role} />
+          : active === "模拟压测"
+            ? <SimulatorPage />
+            : <DashboardPage role={role} />;
   return <Shell active={active} role={role} onRole={changeRole} onTab={setActive}>{page}</Shell>;
 }
