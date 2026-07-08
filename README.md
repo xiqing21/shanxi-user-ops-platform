@@ -101,5 +101,6 @@ pnpm test:ai
 ## Docs
 
 - Product design: `doc/product_v2_design.md`
+- Product prototype storyboard: `doc/product_storyboard_prototype.md`
 - Implementation plan: `docs/superpowers/plans/2026-07-07-shanxi-user-ops-platform.md`
 - Verification: `docs/verification.md`
