@@ -12,6 +12,7 @@ import { formatNumber } from "../lib/format";
 import type { RoleView } from "../lib/roles";
 
 interface Summary {
+  dataSource?: "starrocks_internal" | "fixture_fallback";
   generatedAt: string;
   totalUsers: number;
   totalLoadKw: number;
@@ -27,6 +28,7 @@ interface RiskItem {
   message: string;
   timestamp: string;
   city?: string;
+  county?: string;
   userType?: string;
   userName?: string;
   industry?: string;
@@ -59,6 +61,9 @@ export function DashboardPage({ role }: { role: RoleView }) {
             <Badge variant="secondary">{role.scopeLabel}</Badge>
             <Badge variant="outline">实时 + 离线校准</Badge>
             <Badge variant="outline">{role.shortName}视角</Badge>
+            <Badge variant={summary.dataSource === "starrocks_internal" ? "secondary" : "outline"}>
+              {summary.dataSource === "starrocks_internal" ? "StarRocks 内表" : "fixture fallback"}
+            </Badge>
           </div>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">{role.scopeLabel}实时智能运营态势</h2>
           <p className="mt-2 text-sm text-slate-500">{role.operatingHint}</p>

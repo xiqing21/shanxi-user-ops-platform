@@ -24,6 +24,7 @@ interface RuntimeService {
 interface RuntimeTopology {
   modes: RuntimeMode[];
   services: RuntimeService[];
+  architecture: string[];
   notes: string[];
 }
 
@@ -78,9 +79,26 @@ export function RuntimeTopologyPage({ role }: { role: RoleView }) {
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
           <b className="text-slate-950">推荐启动</b>
-          <code className="mt-1 block rounded-md bg-white px-2 py-1 text-xs text-blue-700">pnpm stack:up:full</code>
+          <code className="mt-1 block rounded-md bg-white px-2 py-1 text-xs text-blue-700">./scripts/start-full-stack.sh</code>
         </div>
       </header>
+
+      <Card className="border-blue-200 bg-white shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Waypoints className="h-4 w-4 text-blue-600" />
+            目标数据链路
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2 text-sm">
+          {topology.architecture.map((node, index) => (
+            <span className="flex items-center gap-2" key={node}>
+              <Badge variant={node.includes("StarRocks 内表") ? "secondary" : "outline"}>{node}</Badge>
+              {index < topology.architecture.length - 1 && <span className="text-slate-300">→</span>}
+            </span>
+          ))}
+        </CardContent>
+      </Card>
 
       <section className="grid gap-3 md:grid-cols-2">
         {topology.modes.map((mode) => (

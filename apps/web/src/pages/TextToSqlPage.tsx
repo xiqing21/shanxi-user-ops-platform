@@ -32,6 +32,7 @@ interface ChartPoint {
 
 interface TextToSqlResult {
   query: string;
+  dataSource?: "starrocks_internal" | "fixture_fallback";
   generatedAt: string;
   sql: string;
   evidence: Array<{ title: string; text: string }>;
@@ -122,7 +123,11 @@ export function TextToSqlPage({ role }: { role: RoleView }) {
                 {result ? `数据时间 ${result.generatedAt}，返回 ${result.rows.length} 条` : "还没有执行查询"}
               </p>
             </div>
-            {result && <Badge variant="secondary">来自当前模拟快照</Badge>}
+            {result && (
+              <Badge variant={result.dataSource === "starrocks_internal" ? "secondary" : "outline"}>
+                {result.dataSource === "starrocks_internal" ? "StarRocks 内表" : "fixture fallback"}
+              </Badge>
+            )}
           </div>
           <div className="p-3">
             {!result ? (

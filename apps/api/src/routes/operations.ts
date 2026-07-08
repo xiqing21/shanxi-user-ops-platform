@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
+import type { RowDataPacket } from "mysql2";
 import { calculateLoadRate } from "@shanxi/domain";
 import { loadSnapshot } from "../services/fixture-store";
+import { queryStarRocks, type DataSourceName } from "../services/starrocks";
 
 interface RuntimeProbe {
   connected: boolean;
@@ -10,52 +12,15 @@ interface RuntimeProbe {
 
 export async function operationsRoutes(app: FastifyInstance) {
   app.get("/operations/summary", async () => {
-    const snapshot = await loadSnapshot();
-    const latestByUser = new Map(snapshot.readings.map((reading) => [reading.userId, reading]));
-    const totalLoadKw = Array.from(latestByUser.values()).reduce((sum, reading) => sum + reading.activePowerKw, 0);
-    const largeIndustrialUsers = snapshot.users.filter((user) => user.userType === "large_industrial");
-    const criticalRisks = snapshot.risks.filter((risk) => risk.level === "critical");
-    return {
-      generatedAt: snapshot.generatedAt,
-      totalUsers: snapshot.users.length,
-      totalLoadKw: Number(totalLoadKw.toFixed(2)),
-      largeIndustrialUsers: largeIndustrialUsers.length,
-      activeRisks: snapshot.risks.length,
-      criticalRisks: criticalRisks.length
-    };
+    return await starrocksSummary().catch(fixtureSummary);
   });
 
   app.get("/operations/risks", async () => {
-    const snapshot = await loadSnapshot();
-    const users = new Map(snapshot.users.map((user) => [user.userId, user]));
-    return snapshot.risks.slice(0, 50).map((risk) => {
-      const user = users.get(risk.userId);
-      return {
-        ...risk,
-        userName: user?.userName ?? risk.userId,
-        city: user?.city ?? "未知",
-        county: user?.county ?? "未知",
-        userType: user?.userType ?? "unknown",
-        industry: user?.industry ?? "未知"
-      };
-    });
+    return await starrocksRisks().catch(fixtureRisks);
   });
 
   app.get("/operations/industrial", async () => {
-    const snapshot = await loadSnapshot();
-    const latest = new Map(snapshot.readings.map((reading) => [reading.userId, reading]));
-    return snapshot.users
-      .filter((user) => user.userType === "large_industrial" || user.userType === "high_energy")
-      .map((user) => {
-        const reading = latest.get(user.userId);
-        return {
-          ...user,
-          activePowerKw: reading?.activePowerKw ?? 0,
-          loadRate: reading ? calculateLoadRate(reading.activePowerKw, user.contractCapacityKva, reading.powerFactor) : 0
-        };
-      })
-      .sort((a, b) => b.activePowerKw - a.activePowerKw)
-      .slice(0, 30);
+    return await starrocksIndustrial().catch(fixtureIndustrial);
   });
 
   app.get("/operations/runtime-status", async () => {
@@ -96,7 +61,7 @@ export async function operationsRoutes(app: FastifyInstance) {
       {
         id: "lakehouse",
         name: "完全体流湖仓栈",
-        command: "pnpm stack:up:full",
+        command: "./scripts/start-full-stack.sh",
         description: "在核心栈基础上启用 Flink、Fluss、Paimon S3 Warehouse、StarRocks、PostgreSQL CDC。"
       }
     ],
@@ -117,12 +82,189 @@ export async function operationsRoutes(app: FastifyInstance) {
       service("paimon-warehouse", "Paimon Warehouse", "离线快照层", "完全体", "不是单独容器，而是 Flink/Paimon Catalog 写入 MinIO 的 s3://fluss/paimon。", ["s3://fluss/paimon"]),
       service("starrocks", "StarRocks", "OLAP 查询/接口层", "完全体", "承接 ADS 宽表、看板接口和高速聚合查询。", ["9030", "8030", "8040"])
     ],
+    architecture: [
+      "PostgreSQL 源库",
+      "Flink CDC",
+      "Fluss ODS/DWD 实时湖表",
+      "Flink TVF/CEP/Batch",
+      "StarRocks 内表 ADS",
+      "Paimon 离线快照",
+      "StarRocks 外表",
+      "API / Text2SQL",
+      "Milvus + BGE 元数据召回"
+    ],
     notes: [
       "Milvus 的 balancer 日志是正常 INFO 心跳，不是报错。",
       "如果不想刷屏，用 pnpm stack:up 后台启动；需要看日志时再用 pnpm stack:logs milvus。",
-      "Flink/Paimon 没有真正作业提交前，状态页会显示 Flink 在线但 Running Jobs 为 0。"
+      "当前一键脚本已提交真实 Flink streaming health job；业务 CDC 到 Fluss/Paimon/StarRocks 的 SQL 作业需要继续补齐。"
     ]
   }));
+}
+
+interface SummaryRow extends RowDataPacket {
+  generatedAt: string | Date | null;
+  totalUsers: number;
+  totalLoadKw: number | null;
+  largeIndustrialUsers: number;
+  activeRisks: number;
+  criticalRisks: number;
+}
+
+interface RiskRow extends RowDataPacket {
+  eventId: string;
+  riskType: string;
+  level: string;
+  message: string;
+  timestamp: string | Date;
+  userId: string;
+  userName: string;
+  city: string;
+  county: string;
+  userType: string;
+  industry: string;
+}
+
+interface IndustrialRow extends RowDataPacket {
+  userId: string;
+  userName: string;
+  city: string;
+  county: string;
+  industry: string;
+  userType: string;
+  contractCapacityKva: number;
+  transformerId: string;
+  lineId: string;
+  tags: string;
+  activePowerKw: number;
+  loadRate: number;
+}
+
+async function starrocksSummary() {
+  const [row] = await queryStarRocks<SummaryRow>(`
+    SELECT
+      CAST(MAX(generated_at) AS CHAR) AS generatedAt,
+      COUNT(*) AS totalUsers,
+      SUM(active_power_kw) AS totalLoadKw,
+      SUM(CASE WHEN user_type IN ('large_industrial', 'high_energy') THEN 1 ELSE 0 END) AS largeIndustrialUsers,
+      SUM(CASE WHEN risk_level <> 'normal' THEN 1 ELSE 0 END) AS activeRisks,
+      SUM(CASE WHEN risk_level = 'critical' THEN 1 ELSE 0 END) AS criticalRisks
+    FROM ads_realtime_user_load
+  `);
+  return {
+    dataSource: "starrocks_internal" satisfies DataSourceName,
+    generatedAt: normalizeDate(row.generatedAt),
+    totalUsers: Number(row.totalUsers ?? 0),
+    totalLoadKw: Number(Number(row.totalLoadKw ?? 0).toFixed(2)),
+    largeIndustrialUsers: Number(row.largeIndustrialUsers ?? 0),
+    activeRisks: Number(row.activeRisks ?? 0),
+    criticalRisks: Number(row.criticalRisks ?? 0)
+  };
+}
+
+async function starrocksRisks() {
+  const rows = await queryStarRocks<RiskRow>(`
+    SELECT
+      event_id AS eventId,
+      risk_type AS riskType,
+      level,
+      message,
+      CAST(event_time AS CHAR) AS timestamp,
+      user_id AS userId,
+      user_name AS userName,
+      city,
+      county,
+      user_type AS userType,
+      industry
+    FROM ads_realtime_risk_events
+    ORDER BY event_time DESC
+    LIMIT 50
+  `);
+  return rows.map((row) => ({ ...row, dataSource: "starrocks_internal" satisfies DataSourceName }));
+}
+
+async function starrocksIndustrial() {
+  const rows = await queryStarRocks<IndustrialRow>(`
+    SELECT
+      user_id AS userId,
+      user_name AS userName,
+      city,
+      county,
+      industry,
+      user_type AS userType,
+      contract_capacity_kva AS contractCapacityKva,
+      transformer_id AS transformerId,
+      line_id AS lineId,
+      tags,
+      active_power_kw AS activePowerKw,
+      load_rate AS loadRate
+    FROM ads_realtime_user_load
+    WHERE user_type IN ('large_industrial', 'high_energy')
+    ORDER BY active_power_kw DESC
+    LIMIT 30
+  `);
+  return rows.map((row) => ({
+    ...row,
+    tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+    dataSource: "starrocks_internal" satisfies DataSourceName
+  }));
+}
+
+async function fixtureSummary() {
+  const snapshot = await loadSnapshot();
+  const latestByUser = new Map(snapshot.readings.map((reading) => [reading.userId, reading]));
+  const totalLoadKw = Array.from(latestByUser.values()).reduce((sum, reading) => sum + reading.activePowerKw, 0);
+  const largeIndustrialUsers = snapshot.users.filter((user) => user.userType === "large_industrial");
+  const criticalRisks = snapshot.risks.filter((risk) => risk.level === "critical");
+  return {
+    dataSource: "fixture_fallback" satisfies DataSourceName,
+    generatedAt: snapshot.generatedAt,
+    totalUsers: snapshot.users.length,
+    totalLoadKw: Number(totalLoadKw.toFixed(2)),
+    largeIndustrialUsers: largeIndustrialUsers.length,
+    activeRisks: snapshot.risks.length,
+    criticalRisks: criticalRisks.length
+  };
+}
+
+async function fixtureRisks() {
+  const snapshot = await loadSnapshot();
+  const users = new Map(snapshot.users.map((user) => [user.userId, user]));
+  return snapshot.risks.slice(0, 50).map((risk) => {
+    const user = users.get(risk.userId);
+    return {
+      ...risk,
+      dataSource: "fixture_fallback" satisfies DataSourceName,
+      userName: user?.userName ?? risk.userId,
+      city: user?.city ?? "未知",
+      county: user?.county ?? "未知",
+      userType: user?.userType ?? "unknown",
+      industry: user?.industry ?? "未知"
+    };
+  });
+}
+
+async function fixtureIndustrial() {
+  const snapshot = await loadSnapshot();
+  const latest = new Map(snapshot.readings.map((reading) => [reading.userId, reading]));
+  return snapshot.users
+    .filter((user) => user.userType === "large_industrial" || user.userType === "high_energy")
+    .map((user) => {
+      const reading = latest.get(user.userId);
+      return {
+        ...user,
+        dataSource: "fixture_fallback" satisfies DataSourceName,
+        activePowerKw: reading?.activePowerKw ?? 0,
+        loadRate: reading ? calculateLoadRate(reading.activePowerKw, user.contractCapacityKva, reading.powerFactor) : 0
+      };
+    })
+    .sort((a, b) => b.activePowerKw - a.activePowerKw)
+    .slice(0, 30);
+}
+
+function normalizeDate(value: string | Date | null) {
+  if (!value) return new Date().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  return value;
 }
 
 function service(id: string, name: string, category: string, mode: string, description: string, ports: string[]) {

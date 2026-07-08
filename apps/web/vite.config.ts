@@ -7,6 +7,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          echarts: ["echarts"],
           charts: ["recharts"]
         }
       }

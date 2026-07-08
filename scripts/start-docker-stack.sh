@@ -107,6 +107,8 @@ running_flink_jobs() {
 if [ "$FULL_MODE" = "true" ]; then
   wait_url "Flink JobManager" "http://localhost:8083/jobs/overview" 90
   wait_url "API" "http://localhost:4000/health" 60
+  echo "Loading demo ADS data into StarRocks internal tables"
+  scripts/load-starrocks-demo.sh
 
   if [ "$SUBMIT_FLINK_JOB" = "true" ]; then
     current_jobs="$(running_flink_jobs || echo 0)"

@@ -1,9 +1,22 @@
-import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowLeft, ChevronRight, MapPinned, RadioTower } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as echarts from "echarts";
+import { AlertTriangle, ArrowLeft, ChevronRight, RadioTower } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import type { RoleView } from "../lib/roles";
+import shanxiMap from "../data/maps/140000_full.json";
+import taiyuanMap from "../data/maps/140100_full.json";
+import datongMap from "../data/maps/140200_full.json";
+import yangquanMap from "../data/maps/140300_full.json";
+import changzhiMap from "../data/maps/140400_full.json";
+import jinchengMap from "../data/maps/140500_full.json";
+import shuozhouMap from "../data/maps/140600_full.json";
+import jinzhongMap from "../data/maps/140700_full.json";
+import yunchengMap from "../data/maps/140800_full.json";
+import xinzhouMap from "../data/maps/140900_full.json";
+import linfenMap from "../data/maps/141000_full.json";
+import lvliangMap from "../data/maps/141100_full.json";
 
 interface RiskItem {
   eventId: string;
@@ -17,38 +30,40 @@ interface RiskItem {
   industry?: string;
 }
 
-interface CityNode {
-  city: string;
-  x: number;
-  y: number;
+interface MapFeature {
+  properties?: {
+    name?: string;
+    adcode?: number;
+    center?: number[];
+    centroid?: number[];
+  };
 }
 
-const cityLayout: CityNode[] = [
-  { city: "大同", x: 48, y: 10 },
-  { city: "朔州", x: 39, y: 20 },
-  { city: "忻州", x: 53, y: 29 },
-  { city: "吕梁", x: 35, y: 42 },
-  { city: "太原", x: 55, y: 43 },
-  { city: "阳泉", x: 67, y: 44 },
-  { city: "晋中", x: 57, y: 54 },
-  { city: "临汾", x: 42, y: 68 },
-  { city: "长治", x: 66, y: 69 },
-  { city: "晋城", x: 68, y: 82 },
-  { city: "运城", x: 38, y: 86 }
-];
+interface GeoJsonLike {
+  features?: MapFeature[];
+}
 
-const cityCounties: Record<string, string[]> = {
-  太原: ["小店区", "迎泽区", "杏花岭区", "尖草坪区", "万柏林区", "晋源区", "清徐县", "阳曲县", "古交市"],
-  大同: ["平城区", "云冈区", "新荣区", "阳高县", "天镇县", "浑源县", "左云县"],
-  阳泉: ["城区", "矿区", "郊区", "平定县", "盂县"],
-  长治: ["潞州区", "上党区", "屯留区", "潞城区", "襄垣县", "平顺县", "沁县"],
-  晋城: ["城区", "沁水县", "阳城县", "陵川县", "泽州县", "高平市"],
-  朔州: ["朔城区", "平鲁区", "山阴县", "应县", "右玉县", "怀仁市"],
-  晋中: ["榆次区", "太谷区", "祁县", "平遥县", "灵石县", "介休市"],
-  运城: ["盐湖区", "临猗县", "万荣县", "闻喜县", "稷山县", "河津市", "永济市"],
-  忻州: ["忻府区", "定襄县", "五台县", "代县", "繁峙县", "原平市"],
-  临汾: ["尧都区", "曲沃县", "翼城县", "洪洞县", "襄汾县", "霍州市"],
-  吕梁: ["离石区", "文水县", "交城县", "兴县", "临县", "汾阳市", "孝义市"]
+function asGeoJson(value: unknown): GeoJsonLike {
+  return value as GeoJsonLike;
+}
+
+function toCoord(value?: number[]): [number, number] | undefined {
+  if (!value || value.length < 2) return undefined;
+  return [Number(value[0]), Number(value[1])];
+}
+
+const cityMeta: Record<string, { adcode: number; fullName: string; map: GeoJsonLike }> = {
+  太原: { adcode: 140100, fullName: "太原市", map: asGeoJson(taiyuanMap) },
+  大同: { adcode: 140200, fullName: "大同市", map: asGeoJson(datongMap) },
+  阳泉: { adcode: 140300, fullName: "阳泉市", map: asGeoJson(yangquanMap) },
+  长治: { adcode: 140400, fullName: "长治市", map: asGeoJson(changzhiMap) },
+  晋城: { adcode: 140500, fullName: "晋城市", map: asGeoJson(jinchengMap) },
+  朔州: { adcode: 140600, fullName: "朔州市", map: asGeoJson(shuozhouMap) },
+  晋中: { adcode: 140700, fullName: "晋中市", map: asGeoJson(jinzhongMap) },
+  运城: { adcode: 140800, fullName: "运城市", map: asGeoJson(yunchengMap) },
+  忻州: { adcode: 140900, fullName: "忻州市", map: asGeoJson(xinzhouMap) },
+  临汾: { adcode: 141000, fullName: "临汾市", map: asGeoJson(linfenMap) },
+  吕梁: { adcode: 141100, fullName: "吕梁市", map: asGeoJson(lvliangMap) }
 };
 
 export function ShanxiDrilldownMap({
@@ -62,114 +77,252 @@ export function ShanxiDrilldownMap({
   selectedCity: string;
   onSelectCity: (city: string) => void;
 }) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const chartInstance = useRef<echarts.ECharts | null>(null);
   const [level, setLevel] = useState<"province" | "city">("province");
   const [selectedCounty, setSelectedCounty] = useState<string | null>(null);
-  const visibleCities = useMemo(() => cityLayout.filter((item) => role.cities.includes(item.city)), [role.cities]);
-  const counties = cityCounties[selectedCity] ?? [];
+  const currentCityMeta = cityMeta[selectedCity] ?? cityMeta["太原"];
+  const currentMapName = level === "province" ? "shanxi-province" : `shanxi-city-${currentCityMeta.adcode}`;
+  const currentGeoJson = level === "province" ? asGeoJson(shanxiMap) : currentCityMeta.map;
   const selectedRisks = risks.filter((risk) => risk.city === selectedCity);
-  const countyRisks = selectedCounty ? risksForCounty(selectedRisks, selectedCounty, counties.indexOf(selectedCounty)) : selectedRisks;
-  const cityScores = useMemo(() => {
-    const scores = new Map<string, number>();
-    visibleCities.forEach((node, index) => {
-      const cityRisks = risks.filter((risk) => risk.city === node.city);
+  const visibleCities = role.cities.filter((city) => cityMeta[city]);
+  const selectedScopeRisks = selectedCounty ? risksForArea(selectedRisks, selectedCounty) : selectedRisks;
+
+  const cityMetrics = useMemo(() => {
+    const metrics = new Map<string, { name: string; value: number; severe: number; center?: [number, number] }>();
+    for (const city of visibleCities) {
+      const feature = featureByName(asGeoJson(shanxiMap), cityMeta[city].fullName);
+      const cityRisks = risks.filter((risk) => risk.city === city);
       const severe = cityRisks.filter((risk) => risk.level === "critical").length;
-      scores.set(node.city, Math.min(99, 42 + cityRisks.length * 8 + severe * 14 + index));
-    });
-    return scores;
+      metrics.set(cityMeta[city].fullName, {
+        name: cityMeta[city].fullName,
+        value: cityRisks.length,
+        severe,
+        center: toCoord(feature?.properties?.centroid ?? feature?.properties?.center)
+      });
+    }
+    return metrics;
   }, [risks, visibleCities]);
 
-  const enterCity = (city: string) => {
-    onSelectCity(city);
-    setSelectedCounty(null);
-    setLevel("city");
-  };
+  const countyMetrics = useMemo(() => {
+    const metrics = new Map<string, { name: string; value: number; severe: number; center?: [number, number] }>();
+    currentCityMeta.map.features?.forEach((feature, index) => {
+      const name = feature.properties?.name ?? "";
+      const scopedRisks = risksForCountySlot(selectedRisks, name, index);
+      metrics.set(name, {
+        name,
+        value: scopedRisks.length,
+        severe: scopedRisks.filter((risk) => risk.level === "critical").length,
+        center: toCoord(feature.properties?.centroid ?? feature.properties?.center)
+      });
+    });
+    return metrics;
+  }, [currentCityMeta.map.features, selectedRisks]);
+
+  useEffect(() => {
+    echarts.registerMap("shanxi-province", shanxiMap as never);
+    Object.entries(cityMeta).forEach(([city, meta]) => {
+      echarts.registerMap(`shanxi-city-${meta.adcode}`, meta.map as never);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+    const chart = chartInstance.current ?? echarts.init(chartRef.current, undefined, { renderer: "canvas" });
+    chartInstance.current = chart;
+    const metrics = level === "province" ? cityMetrics : countyMetrics;
+    const data = Array.from(metrics.values()).map((item) => ({
+      name: item.name,
+      value: item.value,
+      severe: item.severe
+    }));
+    const scatter = Array.from(metrics.values())
+      .filter((item) => item.center)
+      .map((item) => ({
+        name: item.name,
+        value: [...(item.center as [number, number]), Math.max(item.value, 1)],
+        severe: item.severe
+      }));
+
+    chart.setOption({
+      backgroundColor: "transparent",
+      tooltip: {
+        trigger: "item",
+        borderWidth: 0,
+        backgroundColor: "rgba(15, 23, 42, 0.92)",
+        textStyle: { color: "#e0f2fe" },
+        formatter: (params: { name?: string; data?: { value?: number; severe?: number } }) => {
+          const value = params.data?.value ?? 0;
+          const severe = params.data?.severe ?? 0;
+          return `${params.name}<br/>风险事件 ${value}<br/>严重风险 ${severe}`;
+        }
+      },
+      visualMap: {
+        show: false,
+        min: 0,
+        max: 20,
+        inRange: {
+          color: ["#164e63", "#0f766e", "#f59e0b", "#e11d48"]
+        }
+      },
+      geo: {
+        map: currentMapName,
+        roam: false,
+        zoom: level === "province" ? 1.08 : 1.03,
+        top: 18,
+        bottom: 14,
+        label: {
+          show: true,
+          color: "#dffcff",
+          fontSize: level === "province" ? 12 : 11,
+          fontWeight: 600
+        },
+        itemStyle: {
+          areaColor: "#0f766e",
+          borderColor: "#a7f3d0",
+          borderWidth: 1.2,
+          shadowColor: "rgba(34, 211, 238, 0.35)",
+          shadowBlur: 18
+        },
+        emphasis: {
+          label: { color: "#ffffff" },
+          itemStyle: {
+            areaColor: "#f59e0b",
+            borderColor: "#fef3c7",
+            shadowBlur: 28
+          }
+        },
+        select: {
+          label: { color: "#ffffff" },
+          itemStyle: { areaColor: "#dc2626" }
+        }
+      },
+      series: [
+        {
+          type: "map",
+          map: currentMapName,
+          geoIndex: 0,
+          data
+        },
+        {
+          type: "effectScatter",
+          coordinateSystem: "geo",
+          data: scatter,
+          symbolSize: (value: number[]) => Math.min(20, 7 + Number(value[2]) * 1.7),
+          rippleEffect: { brushType: "stroke", scale: 3.4 },
+          itemStyle: { color: "#fbbf24", shadowBlur: 12, shadowColor: "#fde68a" },
+          zlevel: 2
+        }
+      ]
+    }, true);
+
+    const onMapClick = (params: { name?: string }) => {
+      if (!params.name) return;
+      if (level === "province") {
+        const city = normalizeCityName(params.name);
+        if (city && role.cities.includes(city)) {
+          onSelectCity(city);
+          setSelectedCounty(null);
+          setLevel("city");
+        }
+      } else {
+        setSelectedCounty(params.name);
+      }
+    };
+    chart.off("click");
+    chart.on("click", onMapClick);
+
+    const resize = () => chart.resize();
+    window.addEventListener("resize", resize);
+    return () => {
+      window.removeEventListener("resize", resize);
+      chart.off("click", onMapClick);
+    };
+  }, [cityMetrics, countyMetrics, currentMapName, level, onSelectCity, role.cities]);
+
+  useEffect(() => () => chartInstance.current?.dispose(), []);
 
   const backToProvince = () => {
     setSelectedCounty(null);
     setLevel("province");
   };
 
+  const riskIndex = level === "province"
+    ? Array.from(cityMetrics.values()).reduce((sum, item) => sum + item.value + item.severe * 3, 0)
+    : selectedScopeRisks.length + selectedScopeRisks.filter((risk) => risk.level === "critical").length * 3;
+
   return (
-    <Card className="overflow-hidden border-slate-200/80 bg-white/90 shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="overflow-hidden border-cyan-200/70 bg-[#07131a] text-white shadow-[0_20px_60px_rgba(8,47,73,0.25)]">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-cyan-300/10 bg-white/[0.03]">
         <CardTitle className="flex items-center gap-2">
-          <RadioTower className="h-4 w-4 text-blue-600" />
-          山西省市县风险下钻
+          <RadioTower className="h-4 w-4 text-cyan-300" />
+          山西省全域用电风险 GIS
         </CardTitle>
-        <Badge variant="outline">{level === "province" ? "点击地市下钻" : "区县视图"}</Badge>
+        <Badge className="border-cyan-300/40 bg-cyan-300/10 text-cyan-100" variant="outline">
+          {level === "province" ? "省级地市下钻" : `${selectedCity} 区县下钻`}
+        </Badge>
       </CardHeader>
-      <CardContent className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
-        <div className="relative min-h-[420px] overflow-hidden rounded-lg border border-blue-100 bg-[radial-gradient(circle_at_20%_10%,#dbeafe_0,#f8fafc_35%,#ffffff_100%)] p-4">
+      <CardContent className="grid gap-4 p-4 xl:grid-cols-[1.25fr_.75fr]">
+        <div className="relative min-h-[520px] overflow-hidden rounded-lg border border-cyan-300/15 bg-[radial-gradient(circle_at_45%_20%,rgba(34,211,238,0.22),transparent_32%),linear-gradient(135deg,#061018,#0b1f28_48%,#07131a)]">
+          <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(125,211,252,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(125,211,252,.12)_1px,transparent_1px)] [background-size:28px_28px]" />
           <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2">
             {level === "city" && (
-              <Button className="h-8 bg-white/90" onClick={backToProvince} size="sm" variant="outline">
+              <Button className="h-8 border-cyan-300/30 bg-cyan-300/10 text-cyan-50 hover:bg-cyan-300/20" onClick={backToProvince} size="sm" variant="outline">
                 <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-                返回全省
+                返回山西省
               </Button>
             )}
-            <Badge variant="secondary">山西省</Badge>
-            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-            <Badge variant={level === "province" ? "outline" : "default"}>{level === "province" ? "全地市" : selectedCity}</Badge>
-            {selectedCounty && <Badge variant="outline">{selectedCounty}</Badge>}
+            <Badge className="bg-cyan-300 text-slate-950">山西省</Badge>
+            <ChevronRight className="h-3.5 w-3.5 text-cyan-200/60" />
+            <Badge className="border-cyan-300/35 text-cyan-50" variant="outline">
+              {level === "province" ? "11 地市" : selectedCity}
+            </Badge>
+            {selectedCounty && <Badge className="border-amber-300/50 text-amber-100" variant="outline">{selectedCounty}</Badge>}
           </div>
-
-          <div className="absolute inset-x-8 bottom-5 top-14">
-            {level === "province" ? (
-              <ProvinceMap cityScores={cityScores} onEnterCity={enterCity} selectedCity={selectedCity} visibleCities={visibleCities} />
-            ) : (
-              <CountyGrid
-                counties={counties}
-                risks={selectedRisks}
-                selectedCounty={selectedCounty}
-                setSelectedCounty={setSelectedCounty}
-              />
-            )}
+          <div ref={chartRef} className="absolute inset-0 pt-12" />
+          <div className="absolute bottom-4 left-4 right-4 z-10 grid gap-2 md:grid-cols-3">
+            <ScreenMetric label="运行层级" value={level === "province" ? "省级" : "市县"} />
+            <ScreenMetric label="风险指数" value={riskIndex} />
+            <ScreenMetric label="严重告警" value={selectedScopeRisks.filter((risk) => risk.level === "critical").length} />
           </div>
         </div>
 
         <div className="grid content-start gap-3">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs text-slate-500">当前路径</p>
-                <h3 className="mt-1 text-xl font-semibold text-slate-950">
-                  山西省 / {level === "province" ? "全地市" : selectedCity}
-                  {selectedCounty ? ` / ${selectedCounty}` : ""}
-                </h3>
-              </div>
-              <Badge variant={countyRisks.some((risk) => risk.level === "critical") ? "destructive" : "secondary"}>
-                风险指数 {level === "province" ? averageScore(cityScores) : cityScores.get(selectedCity) ?? 0}
-              </Badge>
-            </div>
+          <div className="rounded-lg border border-cyan-300/15 bg-white/[0.04] p-4">
+            <p className="text-xs text-cyan-100/70">当前路径</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              山西省 / {level === "province" ? "全地市" : selectedCity}
+              {selectedCounty ? ` / ${selectedCounty}` : ""}
+            </h3>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-              <Metric label={level === "province" ? "地市" : "区县"} value={level === "province" ? visibleCities.length : counties.length} />
-              <Metric label="告警" value={countyRisks.length} />
-              <Metric label="严重" value={countyRisks.filter((risk) => risk.level === "critical").length} />
+              <PanelMetric label={level === "province" ? "地市" : "区县"} value={level === "province" ? visibleCities.length : currentGeoJson.features?.length ?? 0} />
+              <PanelMetric label="告警" value={selectedScopeRisks.length} />
+              <PanelMetric label="严重" value={selectedScopeRisks.filter((risk) => risk.level === "critical").length} />
             </div>
           </div>
 
           <div className="grid gap-2">
-            {countyRisks.slice(0, 4).map((risk) => (
-              <article className="rounded-lg border border-slate-200 bg-white p-3" key={risk.eventId}>
+            {selectedScopeRisks.slice(0, 5).map((risk) => (
+              <article className="rounded-lg border border-cyan-300/15 bg-white/[0.04] p-3" key={risk.eventId}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-900">
-                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="flex items-center gap-2 text-sm font-medium text-cyan-50">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
                     {risk.riskType}
                   </span>
                   <Badge variant={risk.level === "critical" ? "destructive" : "secondary"}>{risk.level}</Badge>
                 </div>
-                <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{risk.message}</p>
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-cyan-100/65">{risk.message}</p>
               </article>
             ))}
-            {countyRisks.length === 0 && (
-              <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500">
-                当前视角暂无未确认告警，可以继续切换地市或区县查看。
+            {selectedScopeRisks.length === 0 && (
+              <div className="rounded-lg border border-dashed border-cyan-300/15 bg-white/[0.03] p-4 text-sm text-cyan-100/65">
+                当前区域暂无未确认告警，点击地图可继续切换地市或区县。
               </div>
             )}
           </div>
 
-          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
-            这个下钻是省调看全市、市县看区县的交互入口；后续接真实 GIS 时，可以把这里的节点替换成 GeoJSON 边界，指标口径不需要重写。
+          <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 text-xs leading-5 text-emerald-50">
+            当前地图使用山西省真实行政边界 GeoJSON，本地离线加载；后续指标只需要替换为 StarRocks ADS/外表结果，不需要重画地图。
           </div>
         </div>
       </CardContent>
@@ -177,114 +330,39 @@ export function ShanxiDrilldownMap({
   );
 }
 
-function ProvinceMap({
-  cityScores,
-  onEnterCity,
-  selectedCity,
-  visibleCities
-}: {
-  cityScores: Map<string, number>;
-  onEnterCity: (city: string) => void;
-  selectedCity: string;
-  visibleCities: CityNode[];
-}) {
+function ScreenMetric({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="relative h-full min-h-[340px]">
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" role="img" aria-label="山西省地市分布">
-        <path
-          d="M47 3 C59 7 66 18 62 30 C72 37 74 52 67 62 C78 72 75 88 61 94 C49 99 39 93 36 82 C25 80 21 69 28 60 C17 48 21 31 33 25 C31 14 37 6 47 3 Z"
-          fill="#eff6ff"
-          stroke="#93c5fd"
-          strokeWidth="1.2"
-        />
-        <path d="M36 24 C47 29 56 29 64 31" fill="none" stroke="#bfdbfe" strokeDasharray="2 2" />
-        <path d="M30 58 C42 52 55 54 70 61" fill="none" stroke="#bfdbfe" strokeDasharray="2 2" />
-        <path d="M40 85 C47 74 55 68 66 63" fill="none" stroke="#bfdbfe" strokeDasharray="2 2" />
-      </svg>
-      {visibleCities.map((node) => {
-        const score = cityScores.get(node.city) ?? 40;
-        return (
-          <button
-            className={`absolute grid -translate-x-1/2 -translate-y-1/2 gap-1 rounded-lg border bg-white/95 px-3 py-2 text-left shadow-sm transition hover:-translate-y-[55%] hover:border-blue-300 hover:shadow-md ${
-              selectedCity === node.city ? "border-blue-500 ring-2 ring-blue-100" : "border-slate-200"
-            }`}
-            key={node.city}
-            onClick={() => onEnterCity(node.city)}
-            style={{ left: `${node.x}%`, top: `${node.y}%` }}
-          >
-            <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-950">
-              <MapPinned className="h-3.5 w-3.5 text-blue-600" />
-              {node.city}
-            </span>
-            <span className={`h-1.5 rounded-full ${barColor(score)}`} style={{ width: `${Math.max(38, score)}px` }} />
-            <span className="text-xs text-slate-500">风险 {score}</span>
-          </button>
-        );
-      })}
+    <div className="rounded-md border border-cyan-300/15 bg-slate-950/45 px-3 py-2 backdrop-blur">
+      <span className="text-xs text-cyan-100/60">{label}</span>
+      <b className="mt-1 block text-lg text-cyan-50">{value}</b>
     </div>
   );
 }
 
-function CountyGrid({
-  counties,
-  risks,
-  selectedCounty,
-  setSelectedCounty
-}: {
-  counties: string[];
-  risks: RiskItem[];
-  selectedCounty: string | null;
-  setSelectedCounty: (county: string | null) => void;
-}) {
+function PanelMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="grid h-full content-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {counties.map((county, index) => {
-        const scopedRisks = risksForCounty(risks, county, index);
-        const severe = scopedRisks.some((risk) => risk.level === "critical");
-        return (
-          <button
-            className={`rounded-lg border p-4 text-left transition hover:border-blue-300 hover:bg-white ${
-              selectedCounty === county ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 bg-white/85"
-            }`}
-            key={county}
-            onClick={() => setSelectedCounty(selectedCounty === county ? null : county)}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <b className="text-sm text-slate-950">{county}</b>
-              <Badge variant={severe ? "destructive" : "secondary"}>{scopedRisks.length}</Badge>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">{severe ? "存在严重风险，需要优先复核" : "常规监测，点击查看告警"}</p>
-          </button>
-        );
-      })}
+    <div className="rounded-md bg-white/[0.06] p-2">
+      <b className="block text-base text-white">{value}</b>
+      <span className="text-cyan-100/55">{label}</span>
     </div>
   );
 }
 
-function risksForCounty(risks: RiskItem[], county: string, index: number) {
-  const exact = risks.filter((risk) => risk.county === county);
+function featureByName(geoJson: GeoJsonLike, name: string) {
+  return geoJson.features?.find((feature) => feature.properties?.name === name);
+}
+
+function normalizeCityName(name: string) {
+  return Object.entries(cityMeta).find(([, meta]) => meta.fullName === name)?.[0] ?? name.replace(/市$/, "");
+}
+
+function risksForArea(risks: RiskItem[], areaName: string) {
+  return risks.filter((risk) => risk.city === areaName || risk.county === areaName || risk.county?.includes(areaName.replace(/[区县市]$/, "")));
+}
+
+function risksForCountySlot(risks: RiskItem[], county: string, index: number) {
+  const exact = risksForArea(risks, county);
   if (exact.length) return exact;
   const slot = (index % 5) + 1;
   return risks.filter((risk) => risk.county?.endsWith(String(slot)));
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md bg-white p-2">
-      <b className="block text-base text-slate-950">{value}</b>
-      <span className="text-slate-400">{label}</span>
-    </div>
-  );
-}
-
-function averageScore(scores: Map<string, number>) {
-  const values = Array.from(scores.values());
-  if (!values.length) return 0;
-  return Math.round(values.reduce((total, value) => total + value, 0) / values.length);
-}
-
-function barColor(score: number) {
-  if (score >= 85) return "bg-rose-500";
-  if (score >= 70) return "bg-amber-500";
-  return "bg-emerald-500";
 }
