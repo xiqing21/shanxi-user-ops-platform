@@ -27,6 +27,21 @@ services:
     volumes:
       - minio-data:/minio_data
 
+  minio-init:
+    image: minio/mc:RELEASE.2024-11-21T17-21-54Z
+    profiles: ["lakehouse"]
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do
+        echo 'Waiting for MinIO...';
+        sleep 2;
+      done;
+      mc mb --ignore-existing local/fluss;
+      mc mb --ignore-existing local/paimon;
+      "
+
   milvus:
     image: milvusdb/milvus:v2.6.17
     command: ["milvus", "run", "standalone"]
@@ -69,6 +84,10 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       AI_SERVICE_URL: http://ai:8000
+      FLINK_REST_URL: http://flink-jobmanager:8081
+      STARROCKS_HTTP_URL: http://starrocks:8030
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
     ports:
       - "4000:4000"
     volumes:
@@ -87,7 +106,209 @@ services:
     depends_on:
       - api
 
+  postgres:
+    image: postgres:14.5
+    profiles: ["lakehouse"]
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=15
+      - -c
+      - max_wal_senders=15
+      - -c
+      - hot_standby=on
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  zookeeper:
+    image: zookeeper:3.9.2
+    profiles: ["lakehouse"]
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/data
+      - zookeeper-datalog:/datalog
+
+  fluss-coordinator:
+    image: apache/fluss:0.9.1-incubating
+    profiles: ["lakehouse"]
+    command: coordinatorServer
+    ports:
+      - "9123:9123"
+    environment:
+      - |
+        FLUSS_PROPERTIES=
+        zookeeper.address: zookeeper:2181
+        bind.listeners: INTERNAL://fluss-coordinator:0, CLIENT://fluss-coordinator:9123
+        advertised.listeners: CLIENT://fluss-coordinator:9123
+        internal.listener.name: INTERNAL
+        remote.data.dir: s3://fluss/remote-data
+        s3.endpoint: http://minio:9000
+        s3.access-key: minioadmin
+        s3.secret-key: minioadmin
+        s3.region: us-east-1
+        s3.path-style-access: true
+        datalake.format: paimon
+        datalake.paimon.metastore: filesystem
+        datalake.paimon.warehouse: s3://fluss/paimon
+        datalake.paimon.s3.endpoint: http://minio:9000
+        datalake.paimon.s3.access-key: minioadmin
+        datalake.paimon.s3.secret-key: minioadmin
+        datalake.paimon.s3.path.style.access: true
+    depends_on:
+      zookeeper:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - ${LAKEHOUSE_LIB_DIR:-../../example/reference_blueprint/flink22_lib}/paimon-s3-1.3.1.jar:/opt/fluss/plugins/paimon/paimon-s3-1.3.1.jar:ro
+
+  fluss-tablet:
+    image: apache/fluss:0.9.1-incubating
+    profiles: ["lakehouse"]
+    command: tabletServer
+    ports:
+      - "9124:9124"
+    environment:
+      - |
+        FLUSS_PROPERTIES=
+        zookeeper.address: zookeeper:2181
+        bind.listeners: INTERNAL://fluss-tablet:0, CLIENT://fluss-tablet:9124
+        advertised.listeners: CLIENT://fluss-tablet:9124
+        internal.listener.name: INTERNAL
+        tablet-server.id: 0
+        data.dir: /opt/fluss/data
+        remote.data.dir: s3://fluss/remote-data
+        s3.endpoint: http://minio:9000
+        s3.access-key: minioadmin
+        s3.secret-key: minioadmin
+        s3.region: us-east-1
+        s3.path-style-access: true
+        datalake.format: paimon
+        datalake.paimon.metastore: filesystem
+        datalake.paimon.warehouse: s3://fluss/paimon
+        datalake.paimon.s3.endpoint: http://minio:9000
+        datalake.paimon.s3.access-key: minioadmin
+        datalake.paimon.s3.secret-key: minioadmin
+        datalake.paimon.s3.path.style.access: true
+    volumes:
+      - fluss-tablet-data:/opt/fluss/data
+      - ${LAKEHOUSE_LIB_DIR:-../../example/reference_blueprint/flink22_lib}/paimon-s3-1.3.1.jar:/opt/fluss/plugins/paimon/paimon-s3-1.3.1.jar:ro
+    depends_on:
+      - fluss-coordinator
+
+  flink-jobmanager:
+    image: flink:2.2.0-java17
+    profiles: ["lakehouse"]
+    ports:
+      - "8083:8081"
+    entrypoint: ["/bin/bash", "-c"]
+    command: "cp /tmp/jars/*.jar /opt/flink/lib/ 2>/dev/null || true; /docker-entrypoint.sh jobmanager"
+    environment:
+      - TZ=Asia/Shanghai
+      - AWS_EC2_METADATA_DISABLED=true
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        rest.address: 0.0.0.0
+        rest.bind-address: 0.0.0.0
+        taskmanager.numberOfTaskSlots: 8
+        state.backend.type: rocksdb
+        state.backend.incremental: true
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        execution.checkpointing.interval: 10s
+        env.timezone: Asia/Shanghai
+        s3.endpoint: http://minio:9000
+        s3.access-key: minioadmin
+        s3.secret-key: minioadmin
+        s3.path.style.access: true
+    volumes:
+      - ${LAKEHOUSE_LIB_DIR:-../../example/reference_blueprint/flink22_lib}:/tmp/jars:ro
+      - flink-checkpoints:/opt/flink/checkpoints
+      - flink-catalog-store:/opt/flink/catalog-store
+
+  flink-taskmanager:
+    image: flink:2.2.0-java17
+    profiles: ["lakehouse"]
+    entrypoint: ["/bin/bash", "-c"]
+    command: "cp /tmp/jars/*.jar /opt/flink/lib/ 2>/dev/null || true; /docker-entrypoint.sh taskmanager"
+    environment:
+      - TZ=Asia/Shanghai
+      - AWS_EC2_METADATA_DISABLED=true
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 8
+        taskmanager.memory.process.size: 2048m
+        state.backend.type: rocksdb
+        state.backend.incremental: true
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        execution.checkpointing.interval: 10s
+        env.timezone: Asia/Shanghai
+    volumes:
+      - ${LAKEHOUSE_LIB_DIR:-../../example/reference_blueprint/flink22_lib}:/tmp/jars:ro
+      - flink-checkpoints:/opt/flink/checkpoints
+      - flink-catalog-store:/opt/flink/catalog-store
+    depends_on:
+      - flink-jobmanager
+
+  flink-sql-client:
+    image: flink:2.2.0-java17
+    profiles: ["lakehouse"]
+    entrypoint: ["/bin/bash", "-c"]
+    command: "cp /tmp/jars/*.jar /opt/flink/lib/ 2>/dev/null || true; tail -f /dev/null"
+    environment:
+      - TZ=Asia/Shanghai
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        rest.address: flink-jobmanager
+        rest.port: 8081
+        table.catalog-store.kind: file
+        table.catalog-store.file.path: file:///opt/flink/catalog-store
+        env.timezone: Asia/Shanghai
+    volumes:
+      - ${LAKEHOUSE_LIB_DIR:-../../example/reference_blueprint/flink22_lib}:/tmp/jars:ro
+      - flink-catalog-store:/opt/flink/catalog-store
+    depends_on:
+      - flink-jobmanager
+      - fluss-coordinator
+
+  starrocks:
+    image: starrocks/allin1-ubuntu:3.4-latest
+    profiles: ["lakehouse"]
+    ports:
+      - "9030:9030"
+      - "8030:8030"
+      - "8040:8040"
+    command: >
+      /bin/bash -c "
+        sed -i 's|127.0.0.1/32|172.16.0.0/12|g' ./entrypoint.sh &&
+        sed -i 's|MYHOST=127.0.0.1|MYHOST=starrocks|g' ./starrocks/director/run.sh &&
+        ./entrypoint.sh
+      "
+    volumes:
+      - starrocks-fe-meta:/opt/starrocks/fe/meta
+      - starrocks-be-storage:/opt/starrocks/be/storage
+
 volumes:
   etcd-data:
   minio-data:
   milvus-data:
+  postgres-data:
+  zookeeper-data:
+  zookeeper-datalog:
+  fluss-tablet-data:
+  flink-checkpoints:
+  flink-catalog-store:
+  starrocks-fe-meta:
+  starrocks-be-storage:

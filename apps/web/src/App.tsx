@@ -4,6 +4,7 @@ import { AgentTaskPage } from "./pages/AgentTaskPage";
 import { AgentOrchestrationPage } from "./pages/AgentOrchestrationPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { IndustrialPage } from "./pages/IndustrialPage";
+import { RuntimeTopologyPage } from "./pages/RuntimeTopologyPage";
 import { SimulatorPage } from "./pages/SimulatorPage";
 import { TextToSqlPage } from "./pages/TextToSqlPage";
 import { defaultRole, type RoleView } from "./lib/roles";
@@ -27,6 +28,8 @@ export function App() {
           ? <AgentOrchestrationPage role={role} />
           : active === "模拟压测"
             ? <SimulatorPage />
-            : <DashboardPage role={role} />;
+            : active === "运行拓扑"
+              ? <RuntimeTopologyPage role={role} />
+              : <DashboardPage role={role} />;
   return <Shell active={active} role={role} onRole={changeRole} onTab={setActive}>{page}</Shell>;
 }

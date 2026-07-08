@@ -22,7 +22,7 @@ Open:
 - Frontend: http://localhost:5050
 - API health: http://localhost:4000/health
 
-Full Docker stack with Python AI and Milvus:
+Core Docker stack with Python AI and Milvus:
 
 ```bash
 pnpm stack:up
@@ -35,6 +35,38 @@ Open:
 - Python AI health: http://localhost:8000/health
 - Milvus gRPC: localhost:19530
 - MinIO console: http://localhost:19001
+
+Lakehouse full stack:
+
+```bash
+pnpm stack:up:full
+```
+
+This starts the core stack plus:
+
+- Flink JobManager UI: http://localhost:8083
+- Fluss Coordinator: localhost:9123
+- Fluss Tablet: localhost:9124
+- Paimon warehouse: `s3://fluss/paimon` on MinIO
+- StarRocks FE HTTP: http://localhost:8030
+- StarRocks MySQL protocol: localhost:9030
+- PostgreSQL CDC source: localhost:5432
+
+The full stack mounts Flink/Fluss/Paimon/StarRocks connector jars from `LAKEHOUSE_LIB_DIR`. By default this points to the local reference bundle:
+
+```bash
+LAKEHOUSE_LIB_DIR=../../example/reference_blueprint/flink22_lib
+```
+
+The jar bundle is intentionally not committed into the app source because it is hundreds of MB; keep it local or point the variable at your own dependency directory.
+
+The startup script runs Docker Compose in detached mode. Milvus periodically prints INFO lines such as `balance wait`; those are normal internal balancing heartbeats, not errors. To inspect logs only when needed:
+
+```bash
+pnpm stack:logs milvus
+pnpm stack:logs flink-jobmanager
+pnpm stack:ps
+```
 
 Optional DeepSeek integration:
 
