@@ -6,7 +6,7 @@
     "dev": "pnpm --parallel --filter @shanxi/api --filter @shanxi/web dev",
     "start:local": "scripts/start-local.sh",
     "stack:up": "scripts/start-docker-stack.sh",
-    "stack:up:full": "scripts/start-docker-stack.sh --full",
+    "stack:up:full": "scripts/start-full-stack.sh",
     "stack:logs": "scripts/start-docker-stack.sh --logs",
     "stack:ps": "docker compose --env-file .env -f deploy/compose/docker-compose.yml --profile lakehouse ps",
     "stack:down": "docker compose -f deploy/compose/docker-compose.yml down",

@@ -8,6 +8,7 @@ FULL_MODE=false
 FOLLOW_LOGS=false
 BUILD_FLAG="--build"
 LOG_SERVICE=""
+SUBMIT_FLINK_JOB=true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -27,15 +28,19 @@ while [[ $# -gt 0 ]]; do
       BUILD_FLAG=""
       shift
       ;;
+    --no-submit)
+      SUBMIT_FLINK_JOB=false
+      shift
+      ;;
     -h|--help)
       cat <<'HELP'
 Usage:
-  scripts/start-docker-stack.sh [--full] [--logs [service]] [--no-build]
+  scripts/start-docker-stack.sh [--full] [--logs [service]] [--no-build] [--no-submit]
 
 Examples:
-  pnpm stack:up             # core stack, detached
-  pnpm stack:up:full        # Flink + Fluss + Paimon + StarRocks + PostgreSQL
-  pnpm stack:logs milvus    # follow Milvus logs only
+  pnpm stack:up                 # core stack, detached
+  pnpm stack:up:full            # full stack + submit a real Flink streaming job
+  pnpm stack:logs milvus        # follow Milvus logs only
 HELP
       exit 0
       ;;
@@ -67,6 +72,54 @@ fi
 
 "${compose[@]}" up -d ${BUILD_FLAG}
 
+wait_url() {
+  local name="$1"
+  local url="$2"
+  local max_attempts="${3:-60}"
+  local attempt=1
+  printf "Waiting for %s" "$name"
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if curl -sf "$url" >/dev/null 2>&1; then
+      echo " ok"
+      return 0
+    fi
+    printf "."
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+  echo ""
+  echo "ERROR: $name is not ready: $url" >&2
+  return 1
+}
+
+running_flink_jobs() {
+  curl -sf http://localhost:8083/jobs/overview 2>/dev/null | node -e '
+    let input = "";
+    process.stdin.on("data", chunk => input += chunk);
+    process.stdin.on("end", () => {
+      const payload = JSON.parse(input || "{\"jobs\":[]}");
+      const count = (payload.jobs || []).filter(job => job.state === "RUNNING").length;
+      process.stdout.write(String(count));
+    });
+  '
+}
+
+if [ "$FULL_MODE" = "true" ]; then
+  wait_url "Flink JobManager" "http://localhost:8083/jobs/overview" 90
+  wait_url "API" "http://localhost:4000/health" 60
+
+  if [ "$SUBMIT_FLINK_JOB" = "true" ]; then
+    current_jobs="$(running_flink_jobs || echo 0)"
+    if [ "${current_jobs:-0}" = "0" ]; then
+      echo "Submitting real Flink streaming job: CarTopSpeedWindowingExample"
+      "${compose[@]}" exec -T flink-jobmanager ./bin/flink run -d /opt/flink/examples/streaming/TopSpeedWindowing.jar
+      sleep 3
+    else
+      echo "Flink already has ${current_jobs} running job(s); skip duplicate submit."
+    fi
+  fi
+fi
+
 echo ""
 echo "Docker stack is running in detached mode."
 if [ "$FULL_MODE" = "true" ]; then
@@ -85,6 +138,14 @@ echo "Milvus gRPC:   localhost:19530"
 echo "MinIO console: http://localhost:19001"
 echo ""
 echo "Useful commands:"
+echo "  ./scripts/start-full-stack.sh"
 echo "  pnpm stack:ps"
-echo "  pnpm stack:logs milvus"
+echo "  pnpm stack:logs flink-jobmanager"
 echo "  pnpm stack:down"
+
+if [ "$FULL_MODE" = "true" ]; then
+  echo ""
+  echo "Flink jobs:"
+  curl -sf http://localhost:8083/jobs/overview || true
+  echo ""
+fi

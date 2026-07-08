@@ -211,8 +211,15 @@ services:
     profiles: ["lakehouse"]
     ports:
       - "8083:8081"
-    entrypoint: ["/bin/bash", "-c"]
-    command: "cp /tmp/jars/*.jar /opt/flink/lib/ 2>/dev/null || true; /docker-entrypoint.sh jobmanager"
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        shopt -s nullglob
+        jars=(/tmp/jars/*.jar)
+        if [ $${#jars[@]} -gt 0 ]; then
+          cp "$${jars[@]}" /opt/flink/lib/
+        fi
+        exec /docker-entrypoint.sh jobmanager
     environment:
       - TZ=Asia/Shanghai
       - AWS_EC2_METADATA_DISABLED=true
@@ -224,7 +231,7 @@ services:
         taskmanager.numberOfTaskSlots: 8
         state.backend.type: rocksdb
         state.backend.incremental: true
-        state.checkpoints.dir: file:///opt/flink/checkpoints
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
         execution.checkpointing.interval: 10s
         env.timezone: Asia/Shanghai
         s3.endpoint: http://minio:9000
@@ -233,14 +240,20 @@ services:
         s3.path.style.access: true
     volumes:
       - ${LAKEHOUSE_LIB_DIR:-../../example/reference_blueprint/flink22_lib}:/tmp/jars:ro
-      - flink-checkpoints:/opt/flink/checkpoints
       - flink-catalog-store:/opt/flink/catalog-store
 
   flink-taskmanager:
     image: flink:2.2.0-java17
     profiles: ["lakehouse"]
-    entrypoint: ["/bin/bash", "-c"]
-    command: "cp /tmp/jars/*.jar /opt/flink/lib/ 2>/dev/null || true; /docker-entrypoint.sh taskmanager"
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        shopt -s nullglob
+        jars=(/tmp/jars/*.jar)
+        if [ $${#jars[@]} -gt 0 ]; then
+          cp "$${jars[@]}" /opt/flink/lib/
+        fi
+        exec /docker-entrypoint.sh taskmanager
     environment:
       - TZ=Asia/Shanghai
       - AWS_EC2_METADATA_DISABLED=true
@@ -251,12 +264,11 @@ services:
         taskmanager.memory.process.size: 2048m
         state.backend.type: rocksdb
         state.backend.incremental: true
-        state.checkpoints.dir: file:///opt/flink/checkpoints
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
         execution.checkpointing.interval: 10s
         env.timezone: Asia/Shanghai
     volumes:
       - ${LAKEHOUSE_LIB_DIR:-../../example/reference_blueprint/flink22_lib}:/tmp/jars:ro
-      - flink-checkpoints:/opt/flink/checkpoints
       - flink-catalog-store:/opt/flink/catalog-store
     depends_on:
       - flink-jobmanager
@@ -264,8 +276,15 @@ services:
   flink-sql-client:
     image: flink:2.2.0-java17
     profiles: ["lakehouse"]
-    entrypoint: ["/bin/bash", "-c"]
-    command: "cp /tmp/jars/*.jar /opt/flink/lib/ 2>/dev/null || true; tail -f /dev/null"
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        shopt -s nullglob
+        jars=(/tmp/jars/*.jar)
+        if [ $${#jars[@]} -gt 0 ]; then
+          cp "$${jars[@]}" /opt/flink/lib/
+        fi
+        tail -f /dev/null
     environment:
       - TZ=Asia/Shanghai
       - |

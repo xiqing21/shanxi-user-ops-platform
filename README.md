@@ -39,7 +39,7 @@ Open:
 Lakehouse full stack:
 
 ```bash
-pnpm stack:up:full
+./scripts/start-full-stack.sh
 ```
 
 This starts the core stack plus:
@@ -51,6 +51,8 @@ This starts the core stack plus:
 - StarRocks FE HTTP: http://localhost:8030
 - StarRocks MySQL protocol: localhost:9030
 - PostgreSQL CDC source: localhost:5432
+
+The script waits for Flink JobManager and API readiness, then submits a real Flink streaming health job automatically. You should see at least one `RUNNING` job in http://localhost:8083 and in the Web app's runtime topology page.
 
 The full stack mounts Flink/Fluss/Paimon/StarRocks connector jars from `LAKEHOUSE_LIB_DIR`. By default this points to the local reference bundle:
 
